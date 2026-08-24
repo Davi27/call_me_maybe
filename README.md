@@ -1,12 +1,19 @@
-# call_me_maybe
-Training an LLM
+Contract Table
 
--The acceptable inputs are: 
-    -the file countaining the functions available;
-    -the string that will become the prompt;
-    -the file where the output will be generated;
+argument1:
+path: data/input/functions_definition.json
+contains: the functions available to be selected by the model
+required by the subject: to be formated in JSON
+unknown: if missing return the program
 
--The output will be formated as JSON
+argument2:
+path: data/input/function_calling_tests.json
+contains: strings to be used as prompts
+required by the subject: to be formated in JSON
+unknown: if missing return the program
 
--Malformed or missing-input behavour will trigger the Except(), and the program will end with a message
-
+argument3:
+path: data/output/function_calls.json
+contains: the file where the output of the program will be placed
+required by the subject: to be formated in JSON
+unknown: if missing tue program will have no output
