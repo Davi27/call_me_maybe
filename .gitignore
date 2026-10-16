@@ -1,0 +1,9 @@
+/data/
+/llm_sdk/
+
+.DS_Store
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/

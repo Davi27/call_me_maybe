@@ -1,0 +1,18 @@
+[project]
+name = "call_me_maybe"
+version = "0.1.0"
+description = "Introduction to function calling in LLMs"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "pydantic",
+    "llm_sdk"
+]
+
+[tool.uv.sources]
+    llm_sdk = { path = "./llm_sdk" }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
