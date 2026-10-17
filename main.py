@@ -27,6 +27,36 @@ class ModelAdapter:
         return self._sdk_model.decode([token_id])
 
 
+def extract_parameter_types(func_def: dict) -> dict:
+    if not isinstance(func_def, dict):
+        raise ValueError("Function definition should be a dictionary")
+
+    name = func_def.get("name")
+    if not isinstance(name, str) or not name:
+        raise ValueError("The name must be a non-empty string")
+
+    description = func_def.get("description")
+    if not isinstance(description, str) or not description:
+        raise ValueError("The description must be a non-empty string")
+
+    param = func_def.get("parameters")
+    if not isinstance(param, dict):
+        raise ValueError("Parameters should be a dictionary")
+
+    short = {}
+    for param_name, detail in param.items():
+        if not isinstance(param_name, str) or not param_name:
+            raise ValueError("Parameter names must be a non-empty string")
+        if not isinstance(detail, dict):
+            raise ValueError(f"{param_name}: parameter details should be a dictionary")
+
+        type_name = detail.get("type")
+        if not isinstance(type_name, str) or type_name not in {"string", "boolean", "number"}:
+            raise ValueError(f"{param_name}: unsupported type {type_name!r}")
+        short[param_name] = type_name
+    return short
+
+
 def build_candidate_records(candidate_ids, logits, decode_id):
     return [
         {
@@ -36,6 +66,7 @@ def build_candidate_records(candidate_ids, logits, decode_id):
         }
         for candidate_id in candidate_ids
     ]
+
 
 def candidate_filter(current_name: str, func_names: list[str], records: list[dict]) -> list[dict]:
     ret = []
@@ -85,11 +116,17 @@ def main() -> None:
     try:
         with open(args.functions_definition, "r") as f:
             funcs = json.load(f)
+        if not isinstance(funcs, list) or not funcs:
+            raise ValueError("Function definitions must be a non-empty list")
+        param = {}
+        for func in funcs:
+            types = extract_parameter_types(func)
+            param[func["name"]] = types
     except FileNotFoundError:
         print("File not found", args.functions_definition)
         return
-    except ValueError:
-        print(args.functions_definition, "contains the incorrect format")
+    except ValueError as error:
+        print(args.functions_definition, error)
         return
 
     try:
