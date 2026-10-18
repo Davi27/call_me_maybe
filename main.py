@@ -57,6 +57,41 @@ def extract_parameter_types(func_def: dict) -> dict:
     return short
 
 
+def json_string_prefix_status(text: str) -> str:
+    i = 0
+    escaped = False
+    unicode_left = 0
+    if not text:
+        return "incomplete"
+    if text[0] != '"':
+        return "invalid"
+    for c in text[1:]:
+        i += 1
+        if unicode_left:
+            if c not in "0123456789abcdefABCDEF":
+                return "invalid"
+            unicode_left -= 1
+            continue
+
+        if escaped:
+            escaped = False
+            if c == "u":
+                unicode_left = 4
+                continue
+            if c not in '"\\/bfnrt':
+                return "invalid"
+            continue
+        if c == "\\":
+            escaped = True
+            continue
+        if c == '"':
+            return "complete" if i == len(text) - 1 else "invalid"
+        if ord(c) < 32:
+            return "invalid"
+    return "incomplete"
+    """Return 'incomplete', 'complete', or 'invalid'."""
+
+
 def build_candidate_records(candidate_ids, logits, decode_id):
     return [
         {
@@ -99,6 +134,32 @@ def generate_function_name(adapter: ModelAdapter, initial_context_ids: torch.Ten
 
         if partial_name in allowed_names:
             return partial_name
+    raise StepLimitExceededError("No name was created in the steps length")
+
+
+def generate_string_argument(adapter, initial_context_ids, max_steps):
+    context_ids = initial_context_ids.clone()
+    text = ""
+
+    for _ in range(max_steps):
+        logits = adapter.score_ids(context_ids)
+        records = build_candidate_records(range(len(logits)), logits, adapter.decode_id)
+        legal_records = [
+            record for record in records
+            if record["piece"]
+            and json_string_prefix_status(text + record["piece"]) != "invalid"
+        ]
+        if len(legal_records) == 0:
+            raise NoLegalContinuationError("No legal continuation for this partial string")
+        selected_record = max(legal_records, key=lambda record: record["score"])
+
+        selected_id = selected_record["id"]
+        selected_id_tensor = torch.tensor([[selected_id]], dtype=context_ids.dtype, device=context_ids.device)
+        context_ids = torch.cat((context_ids, selected_id_tensor), dim=1)
+        text += selected_record["piece"]
+        if json_string_prefix_status(text) == "complete":
+            return json.loads(text)
+
     raise StepLimitExceededError("No name was created in the steps length")
 
 
@@ -154,6 +215,7 @@ def main() -> None:
     fns = []
     for fn in funcs:
         fns.append(fn["name"])
+
 
     # generate the function name
     chosen_name = generate_function_name(adapter, encoded_context, "fn_", fns, 10)
