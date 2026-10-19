@@ -57,6 +57,61 @@ def extract_parameter_types(func_def: dict) -> dict:
     return short
 
 
+def json_boolean_prefix_status(text: str) -> str:
+    if not text:
+        return "incomplete"
+    accept = ["false", "true"]
+    for _ in text:
+        if text in accept:
+            return "complete"
+        if not any(target.startswith(text) for target in accept):
+            return "invalid"
+        else:
+            continue
+    return "incomplete"
+
+
+def json_number_prefix_status(text: str) -> str:
+    i = 0
+    is_float = False
+    last = len(text) - 1
+    nbrs = "0123456789"
+    enders = " ,"
+    if not text:
+        return "incomplete"
+    if text[i] not in "-0123456789":
+        return "invalid"
+    if i == last and text[i] in "-":
+        return "incomplete"
+    if i < last and text[i] == "0":
+        if text[i + 1] not in "., ":
+            return "invalid"
+    elif i < last and text[i] == "-" and text[i + 1] == "0":
+        if last > 1 and text[i + 2] not in "., ":
+            return "invalid"
+
+    for c in text[1:]:
+        i += 1
+        if c == "." and not is_float:
+            if text[i - 1] not in nbrs:
+                return "invalid"
+            if i == last:
+                return "incomplete"
+            is_float = True
+            continue
+        elif c == "." and is_float:
+            return "invalid"
+        if c in nbrs:
+            continue
+        if c in enders:
+            if i != last or text[i - 1] not in nbrs:
+                return "invalid"
+            return "ended"
+        if c not in nbrs and c not in enders:
+            return "invalid"
+    return "complete"
+
+
 def json_string_prefix_status(text: str) -> str:
     i = 0
     escaped = False
@@ -160,7 +215,59 @@ def generate_string_argument(adapter, initial_context_ids, max_steps):
         if json_string_prefix_status(text) == "complete":
             return json.loads(text)
 
-    raise StepLimitExceededError("No name was created in the steps length")
+    raise StepLimitExceededError("No string was created in the steps length")
+
+
+def generate_number_argument(adapter, initial_context_ids, max_steps):
+    context_ids = initial_context_ids.clone()
+    text = ""
+
+    for _ in range(max_steps):
+        logits = adapter.score_ids(context_ids)
+        records = build_candidate_records(range(len(logits)), logits, adapter.decode_id)
+        legal_records = [
+            record for record in records
+            if record["piece"]
+            and json_number_prefix_status(text + record["piece"]) != "invalid"
+        ]
+        if len(legal_records) == 0:
+            raise NoLegalContinuationError("No legal continuation for this partial number")
+        selected_record = max(legal_records, key=lambda record: record["score"])
+
+        selected_id = selected_record["id"]
+        selected_id_tensor = torch.tensor([[selected_id]], dtype=context_ids.dtype, device=context_ids.device)
+        context_ids = torch.cat((context_ids, selected_id_tensor), dim=1)
+        text += selected_record["piece"]
+        if json_number_prefix_status(text) == "ended":
+            return json.loads(text[:-1])
+
+    raise StepLimitExceededError("No number was created in the steps length")
+
+
+def generate_boolean_argument(adapter, initial_context_ids, max_steps):
+    context_ids = initial_context_ids.clone()
+    text = ""
+
+    for _ in range(max_steps):
+        logits = adapter.score_ids(context_ids)
+        records = build_candidate_records(range(len(logits)), logits, adapter.decode_id)
+        legal_records = [
+            record for record in records
+            if record["piece"]
+            and json_boolean_prefix_status(text + record["piece"]) != "invalid"
+        ]
+        if len(legal_records) == 0:
+            raise NoLegalContinuationError("No legal continuation for this partial boolean")
+        selected_record = max(legal_records, key=lambda record: record["score"])
+
+        selected_id = selected_record["id"]
+        selected_id_tensor = torch.tensor([[selected_id]], dtype=context_ids.dtype, device=context_ids.device)
+        context_ids = torch.cat((context_ids, selected_id_tensor), dim=1)
+        text += selected_record["piece"]
+        if json_boolean_prefix_status(text) == "complete":
+            return json.loads(text)
+
+    raise StepLimitExceededError("No boolean was created in the steps length")
 
 
 def main() -> None:
