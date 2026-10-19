@@ -270,6 +270,29 @@ def generate_boolean_argument(adapter, initial_context_ids, max_steps):
     raise StepLimitExceededError("No boolean was created in the steps length")
 
 
+def generate_argument_object(adapter: ModelAdapter, request: str, func_def: dict, max_steps: int) -> dict:
+    parameter_types = extract_parameter_types(func_def)
+    arguments = {}
+
+    for param_name, kind in parameter_types.items():
+        field_context = (
+            f"Request: {request}\n"
+            f"Function: {func_def['name']} - {func_def['description']}\n"
+            f"Parameter: {param_name} ({kind})\n"
+            "JSON value: "
+        )
+        context_ids = adapter.encode_prompt(field_context)
+        if kind == "boolean":
+            ret = generate_boolean_argument(adapter, context_ids, max_steps)
+        elif kind == "string":
+            ret = generate_string_argument(adapter, context_ids, max_steps)
+        elif kind == "number":
+            ret = generate_number_argument(adapter, context_ids, max_steps)
+        arguments[param_name] = ret
+
+    return arguments
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
 
