@@ -1,8 +1,9 @@
+from pathlib import Path
 import json
 import argparse
 import llm_sdk
 import torch
-
+import sys
 
 class NoLegalContinuationError(ValueError):
     pass
@@ -275,11 +276,17 @@ def generate_argument_object(adapter: ModelAdapter, request: str, func_def: dict
     arguments = {}
 
     for param_name, kind in parameter_types.items():
+        ending_instruction = ""
+        if kind == "number":
+            ending_instruction = (
+                f"Give the number for {param_name} from the request as a JSON number "
+                "followed immediately by a comma.\n"
+            )
         field_context = (
             f"Request: {request}\n"
             f"Function: {func_def['name']} - {func_def['description']}\n"
             f"Parameter: {param_name} ({kind})\n"
-            "JSON value: "
+            f"{ending_instruction}JSON value: "
         )
         context_ids = adapter.encode_prompt(field_context)
         if kind == "boolean":
@@ -303,6 +310,19 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    output_path = Path(args.output)
+    if output_path.resolve() in {
+        Path(args.input).resolve(),
+        Path(args.functions_definition).resolve(),
+    }:
+        print("Output path must differ from input paths", file=sys.stderr)
+        raise SystemExit(1)
+    try:
+        output_path.unlink(missing_ok=True)
+    except OSError as error:
+        print(f"Output {args.output}: {error}", file=sys.stderr)
+        raise SystemExit(1)
+
     # protect from missing or wrong format input files
     try:
         with open(args.functions_definition, "r") as f:
@@ -313,56 +333,84 @@ def main() -> None:
         for func in funcs:
             types = extract_parameter_types(func)
             param[func["name"]] = types
-    except FileNotFoundError:
-        print("File not found", args.functions_definition)
-        return
-    except ValueError as error:
-        print(args.functions_definition, error)
-        return
+    except (OSError, ValueError) as error:
+        print(f"Definitions {args.functions_definition}: {error}", file=sys.stderr)
+        raise SystemExit(1)
 
     try:
-        with open(args.input, "r") as f:
+        with open(args.input, "r", encoding="utf-8") as f:
             inpt = json.load(f)
-    except FileNotFoundError:
-        print("File not found", args.input)
-        return
-    except ValueError:
-        print(args.input, "contains the incorrect format")
-        return
-
-    # create the context than encode it
-    context = "Functions:\n"
-    for func in funcs:
-        context += func["name"] + " - " + func["description"] + "\n"
-    context += "\nRequest:\n" + inpt[0]["prompt"]
-    context += "\nName:\nfn_"
+        if not isinstance(inpt, list):
+            raise ValueError("Prompt input must be a JSON array")
+        for i, inp in enumerate(inpt):
+            if not isinstance(inp, dict):
+                raise ValueError(f"Prompt {i} must be an object")
+            if not isinstance(inp.get("prompt"), str):
+                raise ValueError(f"Prompt {i} must contain a string prompt")
+    except (OSError, ValueError) as error:
+        print(f"Input {args.input}: {error}", file=sys.stderr)
+        raise SystemExit(1)
 
     adapter = ModelAdapter()
-
-    encoded_context = adapter.encode_prompt(context)
 
     # legal function names list
     fns = []
     for fn in funcs:
         fns.append(fn["name"])
 
-
-    # generate the function name
-    chosen_name = generate_function_name(adapter, encoded_context, "fn_", fns, 10)
-    print(chosen_name)
-
     # store the values in a list. Run a loop so we can convert all prompts
     results = []
 
-    for test in inpt:
+    for i, inp in enumerate(inpt):
+        # create the context than encode it
+        context = "Functions:\n"
+        for func in funcs:
+            context += func["name"] + " - " + func["description"] + "\n"
+        context += "\nRequest:\n" + inp["prompt"]
+        context += "\nName:\nfn_"
+
+        try:
+            encoded_context = adapter.encode_prompt(context)
+            chosen_name = generate_function_name(
+                adapter, encoded_context, "fn_", fns, 10
+            )
+
+            func_def = None
+            for funct in funcs:
+                if funct["name"] == chosen_name:
+                    func_def = funct
+                    break
+            if func_def is None:
+                raise ValueError(f"No definition for {chosen_name}")
+
+            res = generate_argument_object(
+                adapter, inp["prompt"], func_def, 10
+            )
+        except (NoLegalContinuationError, StepLimitExceededError,
+                ValueError, RuntimeError) as error:
+            print(
+                f"Prompt {i}: {type(error).__name__}: {error}",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+
         result = {
-            "prompt": test["prompt"],
-            "name": "TODO",
-            "parameters": {}
+            "prompt": inp["prompt"],
+            "name": chosen_name,
+            "parameters": res
         }
         results.append(result)
-    with open(args.output, "w") as f:
-        json.dump(results, f, indent=2)
+
+    try:
+        with open(args.output, "w", encoding="utf-8") as f:
+            json.dump(results, f, indent=2, allow_nan=False)
+    except (OSError, TypeError, ValueError) as error:
+        try:
+            output_path.unlink(missing_ok=True)
+        except OSError as cleanup_error:
+            print(f"Could not remove partial output: {cleanup_error}", file=sys.stderr)
+        print(f"Output {args.output}: {error}", file=sys.stderr)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
