@@ -1,4 +1,3 @@
-import torch
 import pytest
 from main import NoLegalContinuationError
 from main import StepLimitExceededError
@@ -6,12 +5,13 @@ from main import build_candidate_records
 from main import generate_function_name
 from main import candidate_filter
 
+
 class FakeAdapter:
     def __init__(self):
         self.seen_contexts = []
 
     def score_ids(self, ids):
-        self.seen_contexts.append(ids[0].tolist())
+        self.seen_contexts.append(list(ids))
         return [0, 5, 4, 99]
 
     def decode_id(self, token_id):
@@ -50,7 +50,7 @@ def test_filter_right_behaviour() -> None:
 def test_selection_of_legal_candidate() -> None:
 
     adapter = FakeAdapter()
-    initial_context_ids = torch.tensor([[7]], dtype=torch.long)
+    initial_context_ids = [7]
 
     result = generate_function_name(adapter, initial_context_ids, "fn_", ["fn_ab"], 2)
 
@@ -60,7 +60,7 @@ def test_selection_of_legal_candidate() -> None:
 
 def test_no_legal_continuation() -> None:
     adapter = FakeAdapter()
-    context = torch.tensor([[7]], dtype=torch.long)
+    context = [7]
 
     with pytest.raises(NoLegalContinuationError):
         generate_function_name(adapter, context, "fn_", ["fn_z"], 2)
@@ -68,7 +68,7 @@ def test_no_legal_continuation() -> None:
 
 def test_step_limit_before_complete_name() -> None:
     adapter = FakeAdapter()
-    context = torch.tensor([[7]], dtype=torch.long)
+    context = [7]
 
     with pytest.raises(StepLimitExceededError):
         generate_function_name(adapter, context, "fn_", ["fn_ab"], 1)

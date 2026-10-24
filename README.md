@@ -1,4 +1,76 @@
-Contract Table
+*This project has been created as part of the 42 curriculum by davimar3.*
+
+# Description
+
+Call Me Maybe is a Python project that uses constrained decoding to select a function name and generate typed parameters from natural-language prompts. It reads function definitions and test prompts as JSON, asks the supplied language-model adapter to choose valid continuations, and writes one structured function-call result per prompt.
+
+The implementation keeps model selection and parameter generation inside the project boundary while converting the model's output into JSON-compatible values for string, number, and boolean parameters.
+
+# Instructions
+
+## Installation
+
+Install the project dependencies with:
+
+```bash
+make install
+```
+
+## Execution
+
+Run the application with the default input and output paths:
+
+```bash
+make run
+```
+
+The equivalent direct command is:
+
+```bash
+uv run python -m src
+```
+
+Optional paths can be supplied with:
+
+```bash
+uv run python -m src \\
+  --functions_definition data/input/functions_definition.json \\
+  --input data/input/function_calling_tests.json \\
+  --output data/output/function_calling_results.json
+```
+
+The output is a JSON array containing the original prompt, the selected function name, and generated typed parameters. Use `make debug` to run the same entry point under Python's debugger.
+
+## Quality checks
+
+Run the mandatory style and type checks with:
+
+```bash
+make lint
+```
+
+Remove generated Python and tool caches with:
+
+```bash
+make clean
+```
+
+# Resources
+
+- [Python documentation](https://docs.python.org/3/): language reference and standard-library documentation.
+- [The `json` module](https://docs.python.org/3/library/json.html): JSON parsing and serialization used by the CLI.
+- [uv documentation](https://docs.astral.sh/uv/): project dependency and environment management.
+- The 42 `call_me_maybe` subject: project requirements, constrained-decoding objective, Makefile rules, README requirements, and evaluation constraints.
+
+## AI use disclosure
+
+AI assistance was used to explain project concepts, inspect and debug implementation issues, suggest and review bounded code changes, verify commands and tests, and help structure this documentation. AI-generated suggestions were checked against the repository, the project subject, executable tests, and the observed runtime behavior. The final implementation and documentation are the student's responsibility.
+
+# Algorithm Explanation
+
+
+
+# Input and output contract
 
 argument1:
 path: data/input/functions_definition.json
@@ -19,7 +91,7 @@ required by the subject: to be formated in JSON
 unknown: if the input file is missing or malformed, the program prints a clear error and does not write the output file
 
 
-CLI CONTRACT
+# CLI Contract
 
 Command:
 uv run python -m src [--functions_definition <function_definition_file>] [--input <input_file>] [--output <output_file>]

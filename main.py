@@ -2,8 +2,9 @@ from pathlib import Path
 import json
 import argparse
 import llm_sdk
-import torch
 import sys
+from typing import Any, Callable, cast
+
 
 class NoLegalContinuationError(ValueError):
     pass
@@ -14,18 +15,18 @@ class StepLimitExceededError(Exception):
 
 
 class ModelAdapter:
-    def __init__(self):
-        self._sdk_model = llm_sdk.Small_LLM_Model()
+    def __init__(self) -> None:
+        model_factory: Any = getattr(llm_sdk, "Small_LLM_Model")
+        self._sdk_model: Any = model_factory()
 
-    def encode_prompt(self, prompt):
-        return self._sdk_model.encode(prompt)
+    def encode_prompt(self, prompt: str) -> list[int]:
+        return cast(list[int], self._sdk_model.encode(prompt)[0].tolist())
 
-    def score_ids(self, ids):
-        id_list = ids[0].tolist()
-        return self._sdk_model.get_logits_from_input_ids(id_list)
+    def score_ids(self, ids: list[int]) -> Any:
+        return self._sdk_model.get_logits_from_input_ids(ids)
 
-    def decode_id(self, token_id):
-        return self._sdk_model.decode([token_id])
+    def decode_id(self, token_id: int) -> str:
+        return cast(str, self._sdk_model.decode([token_id]))
 
 
 def extract_parameter_types(func_def: dict) -> dict:
@@ -148,7 +149,11 @@ def json_string_prefix_status(text: str) -> str:
     """Return 'incomplete', 'complete', or 'invalid'."""
 
 
-def build_candidate_records(candidate_ids, logits, decode_id):
+def build_candidate_records(
+    candidate_ids: range,
+    logits: Any,
+    decode_id: Callable[[int], str],
+) -> list[dict[str, Any]]:
     return [
         {
             "id": candidate_id,
@@ -159,7 +164,11 @@ def build_candidate_records(candidate_ids, logits, decode_id):
     ]
 
 
-def candidate_filter(current_name: str, func_names: list[str], records: list[dict]) -> list[dict]:
+def candidate_filter(
+    current_name: str,
+    func_names: list[str],
+    records: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     ret = []
     for record in records:
         piece = record["piece"]
@@ -171,8 +180,8 @@ def candidate_filter(current_name: str, func_names: list[str], records: list[dic
     return ret
 
 
-def generate_function_name(adapter: ModelAdapter, initial_context_ids: torch.Tensor, initial_partial_name: str, allowed_names: list[str], max_steps: int) -> str:
-    context_ids = initial_context_ids.clone()
+def generate_function_name(adapter: ModelAdapter, initial_context_ids: list[int], initial_partial_name: str, allowed_names: list[str], max_steps: int) -> str:
+    context_ids = list(initial_context_ids)
     partial_name = initial_partial_name
 
     for _ in range(max_steps):
@@ -184,17 +193,20 @@ def generate_function_name(adapter: ModelAdapter, initial_context_ids: torch.Ten
         selected_record = max(legal_records, key=lambda record: record["score"])
 
         selected_id = selected_record["id"]
-        selected_id_tensor = torch.tensor([[selected_id]], dtype=context_ids.dtype, device=context_ids.device)
-        context_ids = torch.cat((context_ids, selected_id_tensor), dim=1)
-        partial_name += selected_record["piece"]
+        context_ids.append(selected_id)
+        partial_name += cast(str, selected_record["piece"])
 
         if partial_name in allowed_names:
             return partial_name
     raise StepLimitExceededError("No name was created in the steps length")
 
 
-def generate_string_argument(adapter, initial_context_ids, max_steps):
-    context_ids = initial_context_ids.clone()
+def generate_string_argument(
+    adapter: ModelAdapter,
+    initial_context_ids: list[int],
+    max_steps: int,
+) -> str:
+    context_ids = list(initial_context_ids)
     text = ""
 
     for _ in range(max_steps):
@@ -210,17 +222,20 @@ def generate_string_argument(adapter, initial_context_ids, max_steps):
         selected_record = max(legal_records, key=lambda record: record["score"])
 
         selected_id = selected_record["id"]
-        selected_id_tensor = torch.tensor([[selected_id]], dtype=context_ids.dtype, device=context_ids.device)
-        context_ids = torch.cat((context_ids, selected_id_tensor), dim=1)
+        context_ids.append(selected_id)
         text += selected_record["piece"]
         if json_string_prefix_status(text) == "complete":
-            return json.loads(text)
+            return cast(str, json.loads(text))
 
     raise StepLimitExceededError("No string was created in the steps length")
 
 
-def generate_number_argument(adapter, initial_context_ids, max_steps):
-    context_ids = initial_context_ids.clone()
+def generate_number_argument(
+    adapter: ModelAdapter,
+    initial_context_ids: list[int],
+    max_steps: int,
+) -> int | float:
+    context_ids = list(initial_context_ids)
     text = ""
 
     for _ in range(max_steps):
@@ -236,17 +251,20 @@ def generate_number_argument(adapter, initial_context_ids, max_steps):
         selected_record = max(legal_records, key=lambda record: record["score"])
 
         selected_id = selected_record["id"]
-        selected_id_tensor = torch.tensor([[selected_id]], dtype=context_ids.dtype, device=context_ids.device)
-        context_ids = torch.cat((context_ids, selected_id_tensor), dim=1)
+        context_ids.append(selected_id)
         text += selected_record["piece"]
         if json_number_prefix_status(text) == "ended":
-            return json.loads(text[:-1])
+            return cast(int | float, json.loads(text[:-1]))
 
     raise StepLimitExceededError("No number was created in the steps length")
 
 
-def generate_boolean_argument(adapter, initial_context_ids, max_steps):
-    context_ids = initial_context_ids.clone()
+def generate_boolean_argument(
+    adapter: ModelAdapter,
+    initial_context_ids: list[int],
+    max_steps: int,
+) -> bool:
+    context_ids = list(initial_context_ids)
     text = ""
 
     for _ in range(max_steps):
@@ -262,11 +280,10 @@ def generate_boolean_argument(adapter, initial_context_ids, max_steps):
         selected_record = max(legal_records, key=lambda record: record["score"])
 
         selected_id = selected_record["id"]
-        selected_id_tensor = torch.tensor([[selected_id]], dtype=context_ids.dtype, device=context_ids.device)
-        context_ids = torch.cat((context_ids, selected_id_tensor), dim=1)
+        context_ids.append(selected_id)
         text += selected_record["piece"]
         if json_boolean_prefix_status(text) == "complete":
-            return json.loads(text)
+            return cast(bool, json.loads(text))
 
     raise StepLimitExceededError("No boolean was created in the steps length")
 
@@ -289,6 +306,7 @@ def generate_argument_object(adapter: ModelAdapter, request: str, func_def: dict
             f"{ending_instruction}JSON value: "
         )
         context_ids = adapter.encode_prompt(field_context)
+        ret: Any
         if kind == "boolean":
             ret = generate_boolean_argument(adapter, context_ids, max_steps)
         elif kind == "string":

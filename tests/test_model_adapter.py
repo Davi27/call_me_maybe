@@ -1,4 +1,3 @@
-import torch
 
 def test_prompt_to_logit() -> None:
     from main import ModelAdapter
@@ -6,7 +5,8 @@ def test_prompt_to_logit() -> None:
     ids = adapter.encode_prompt("This is a test!")
     logits = adapter.score_ids(ids)
 
-    assert isinstance(ids, torch.Tensor)
-    assert ids.shape[0] == 1
+    assert ids
+    assert all(isinstance(token_id, int) for token_id in ids)
+    assert isinstance(ids, list)
     assert isinstance(logits, list)
     assert len(logits) == 151936

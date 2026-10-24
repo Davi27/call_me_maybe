@@ -69,6 +69,121 @@ def test_valid_invocation_writes_expected_json(tmp_path: Path) -> None:
         assert isinstance(entry["name"], str)
         assert isinstance(entry["parameters"], dict)
 
+    definitions = json.loads(
+        (PROJECT_ROOT / "data/input/functions_definition.json").read_text()
+    )
+
+    definitions_by_name = {
+        definition["name"]: definition
+        for definition in definitions
+    }
+
+    prompts = json.loads(
+        (PROJECT_ROOT / "data/input/function_calling_tests.json").read_text()
+    )
+
+    assert [entry["prompt"] for entry in output] == [
+        item["prompt"] for item in prompts
+    ]
+
+    for entry in output:
+        name = entry["name"]
+
+        # Reject TODO, unknown, or hardcoded invalid names.
+        assert name in definitions_by_name
+
+        definition = definitions_by_name[name]
+        expected_parameters = definition["parameters"]
+        actual_parameters = entry["parameters"]
+
+        # Every required parameter exists, and no extra parameter is produced.
+        assert set(actual_parameters) == set(expected_parameters)
+
+        for parameter_name, parameter_definition in expected_parameters.items():
+            value = actual_parameters[parameter_name]
+            expected_type = parameter_definition["type"]
+
+            if expected_type == "string":
+                assert isinstance(value, str)
+
+            elif expected_type == "number":
+                # bool is a subclass of int in Python, so exclude it.
+                assert isinstance(value, (int, float))
+                assert not isinstance(value, bool)
+
+            elif expected_type == "boolean":
+                assert isinstance(value, bool)
+
+            else:
+                raise AssertionError(
+                    f"Unsupported test type: {expected_type}"
+                )
+
+
+def test_changed_definition_schema_is_used(tmp_path: Path) -> None:
+    definitions_path = tmp_path / "definitions.json"
+    input_path = tmp_path / "prompts.json"
+    output_path = tmp_path / "results.json"
+
+    definitions_path.write_text(
+        json.dumps(
+            [
+                {
+                    "name": "fn_add_numbers",
+                    "description": (
+                        "Add two numbers together and return their sum."
+                    ),
+                    "parameters": {
+                        "value": {"type": "number"},
+                    },
+                    "returns": {"type": "number"},
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    input_path.write_text(
+        json.dumps(
+            [
+                {"prompt": "What is the sum of 2 and 3?"},
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            "uv",
+            "run",
+            "python",
+            "-m",
+            "src",
+            "--functions_definition",
+            str(definitions_path),
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+        ],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert output_path.exists()
+
+    output = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert len(output) == 1
+    assert output[0]["prompt"] == "What is the sum of 2 and 3?"
+    assert output[0]["name"] == "fn_add_numbers"
+    assert set(output[0]["parameters"]) == {"value"}
+    assert isinstance(output[0]["parameters"]["value"], (int, float))
+    assert not isinstance(output[0]["parameters"]["value"], bool)
+
 
 def test_missing_input_is_handled(tmp_path: Path) -> None:
     missing_input = tmp_path / "missing.json"
@@ -91,9 +206,10 @@ def test_missing_input_is_handled(tmp_path: Path) -> None:
         text=True,
         check=False,
     )
-    assert result.returncode == 0
-    assert "File not found" in result.stdout
-    assert str(missing_input) in result.stdout
+
+    assert result.returncode != 0
+    assert "Input" in result.stderr
+    assert str(missing_input) in result.stderr
     assert not output_path.exists()
 
 
@@ -120,7 +236,9 @@ def test_input_incorrect_format_is_handled(tmp_path: Path) -> None:
         text=True,
         check=False,
     )
-    assert result.returncode == 0
-    assert "contains the incorrect format" in result.stdout
-    assert str(incorrect_format_input) in result.stdout
+
+    assert result.returncode != 0
+    assert "Input" in result.stderr
+    assert "Expecting property name" in result.stderr
+    assert str(incorrect_format_input) in result.stderr
     assert not output_path.exists()
