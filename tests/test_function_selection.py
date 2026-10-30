@@ -1,3 +1,5 @@
+from typing import cast
+
 from main import build_function_selection_context
 from main import build_argument_object_context
 from main import build_parameter_generation_context
@@ -7,6 +9,7 @@ from main import is_string_prefix_of_candidate
 from main import extract_string_candidates
 from main import extract_number_candidates
 from main import map_ordered_number_arguments
+from model_adapter import ModelAdapter
 
 
 def test_function_selection_context_contains_request_and_candidates() -> None:
@@ -142,12 +145,14 @@ def test_function_keyword_score_ignores_common_words() -> None:
     assert add_score > square_root_score
 
 
-class UnusedAdapter:
+class RecordingAdapter:
     def encode_prompt(self, prompt: str) -> list[int]:
-        raise AssertionError("The model should not be used for a unique keyword match")
+        return [1]
 
 
-def test_select_function_name_uses_unique_keyword_match() -> None:
+def test_select_function_name_generates_from_unique_keyword_candidate(
+    monkeypatch,
+) -> None:
     functions = [
         {
             "name": "fn_greet",
@@ -160,15 +165,32 @@ def test_select_function_name_uses_unique_keyword_match() -> None:
             "parameters": {},
         },
     ]
+    captured = {}
+
+    def fake_generate_function_name(
+        adapter,
+        context_ids,
+        initial_partial_name,
+        allowed_names,
+        max_steps,
+    ):
+        captured["allowed_names"] = allowed_names
+        return allowed_names[0]
+
+    monkeypatch.setattr(
+        "function_selection.generate_function_name",
+        fake_generate_function_name,
+    )
 
     result = select_function_name(
-        UnusedAdapter(),
+        cast(ModelAdapter, RecordingAdapter()),
         "Greet shrek",
         functions,
         10,
     )
 
     assert result == "fn_greet"
+    assert captured["allowed_names"] == ["fn_greet"]
 
 
 def test_string_prefix_must_match_one_candidate() -> None:

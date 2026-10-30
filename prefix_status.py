@@ -1,89 +1,87 @@
 def json_boolean_prefix_status(text: str) -> str:
     if not text:
         return "incomplete"
-    accept = ["false", "true"]
-    for _ in text:
-        if text in accept:
-            return "complete"
-        if not any(target.startswith(text) for target in accept):
-            return "invalid"
-        else:
-            continue
-    return "incomplete"
+
+    accepted = ["false", "true"]
+    if text in accepted:
+        return "complete"
+    if any(target.startswith(text) for target in accepted):
+        return "incomplete"
+    return "invalid"
 
 
 def json_number_prefix_status(text: str) -> str:
-    i = 0
-    is_float = False
-    last = len(text) - 1
-    nbrs = "0123456789"
-    enders = " ,"
     if not text:
         return "incomplete"
-    if text[i] not in "-0123456789":
+
+    index = 0
+    is_float = False
+    last = len(text) - 1
+    digits = "0123456789"
+    enders = " ,"
+
+    if text[index] not in "-0123456789":
         return "invalid"
-    if i == last and text[i] in "-":
+    if index == last and text[index] == "-":
         return "incomplete"
-    if i < last and text[i] == "0":
-        if text[i + 1] not in "., ":
+    if index < last and text[index] == "0":
+        if text[index + 1] not in "., ":
             return "invalid"
-    elif i < last and text[i] == "-" and text[i + 1] == "0":
-        if last > 1 and text[i + 2] not in "., ":
+    elif index < last and text[index] == "-" and text[index + 1] == "0":
+        if last > 1 and text[index + 2] not in "., ":
             return "invalid"
 
-    for c in text[1:]:
-        i += 1
-        if c == "." and not is_float:
-            if text[i - 1] not in nbrs:
+    for character in text[1:]:
+        index += 1
+        if character == "." and not is_float:
+            if text[index - 1] not in digits:
                 return "invalid"
-            if i == last:
+            if index == last:
                 return "incomplete"
             is_float = True
             continue
-        elif c == "." and is_float:
+        if character == "." and is_float:
             return "invalid"
-        if c in nbrs:
+        if character in digits:
             continue
-        if c in enders:
-            if i != last or text[i - 1] not in nbrs:
+        if character in enders:
+            if index != last or text[index - 1] not in digits:
                 return "invalid"
             return "ended"
-        if c not in nbrs and c not in enders:
-            return "invalid"
+        return "invalid"
+
     return "complete"
 
 
 def json_string_prefix_status(text: str) -> str:
-    i = 0
-    escaped = False
-    unicode_left = 0
     if not text:
         return "incomplete"
     if text[0] != '"':
         return "invalid"
-    for c in text[1:]:
-        i += 1
+
+    escaped = False
+    unicode_left = 0
+    for index, character in enumerate(text[1:], start=1):
         if unicode_left:
-            if c not in "0123456789abcdefABCDEF":
+            if character not in "0123456789abcdefABCDEF":
                 return "invalid"
             unicode_left -= 1
             continue
 
         if escaped:
             escaped = False
-            if c == "u":
+            if character == "u":
                 unicode_left = 4
-                continue
-            if c not in '"\\/bfnrt':
+            elif character not in '"\\/bfnrt':
                 return "invalid"
             continue
-        if c == "\\":
+
+        if character == "\\":
             escaped = True
             continue
-        if c == '"':
-            return "complete" if i == len(text) - 1 else "invalid"
-        if ord(c) < 32:
+        if character == '"':
+            return "complete" if index == len(text) - 1 else "invalid"
+        if ord(character) < 32:
             return "invalid"
-    return "incomplete"
-    """Return 'incomplete', 'complete', or 'invalid'."""
 
+    return "incomplete"

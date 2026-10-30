@@ -1,33 +1,26 @@
+import json
+from typing import Any, cast
 
-
-def extract_parameter_types(func_def: dict) -> dict:
-    if not isinstance(func_def, dict):
-        raise ValueError("Function definition should be a dictionary")
-
-    name = func_def.get("name")
-    if not isinstance(name, str) or not name:
-        raise ValueError("The name must be a non-empty string")
-
-    description = func_def.get("description")
-    if not isinstance(description, str) or not description:
-        raise ValueError("The description must be a non-empty string")
-
-    param = func_def.get("parameters")
-    if not isinstance(param, dict):
-        raise ValueError("Parameters should be a dictionary")
-
-    short = {}
-    for param_name, detail in param.items():
-        if not isinstance(param_name, str) or not param_name:
-            raise ValueError("Parameter names must be a non-empty string")
-        if not isinstance(detail, dict):
-            raise ValueError(f"{param_name}: parameter details should be a dictionary")
-
-        type_name = detail.get("type")
-        if not isinstance(type_name, str) or type_name not in {"string", "boolean", "number"}:
-            raise ValueError(f"{param_name}: unsupported type {type_name!r}")
-        short[param_name] = type_name
-    return short
+from candidates import build_candidate_records
+from definitions import extract_parameter_types
+from errors import NoLegalContinuationError, StepLimitExceededError
+from generate_number import (
+    extract_number_candidates,
+    generate_number_argument,
+    map_ordered_number_arguments,
+)
+from model_adapter import ModelAdapter
+from prefix_status import (
+    json_boolean_prefix_status,
+    json_string_prefix_status,
+)
+from substitute_accuracy import (
+    extract_string_candidates,
+    is_string_prefix_of_candidate,
+    longest_string_candidate,
+    regex_string_candidate,
+    replacement_string_candidate,
+)
 
 
 def generate_string_argument(
@@ -41,7 +34,11 @@ def generate_string_argument(
 
     for _ in range(max_steps):
         logits = adapter.score_ids(context_ids)
-        records = build_candidate_records(range(len(logits)), logits, adapter.decode_id)
+        records = build_candidate_records(
+            range(len(logits)),
+            logits,
+            adapter.decode_id,
+        )
         legal_records = [
             record
             for record in records
@@ -54,21 +51,24 @@ def generate_string_argument(
                 candidates,
             )
         ]
-        if len(legal_records) == 0:
-            raise NoLegalContinuationError("No legal continuation for this partial string")
-        selected_record = max(legal_records, key=lambda record: record["score"])
+        if not legal_records:
+            raise NoLegalContinuationError(
+                "No legal continuation for this partial string"
+            )
 
-        selected_id = selected_record["id"]
-        context_ids.append(selected_id)
+        selected_record = max(
+            legal_records,
+            key=lambda record: record["score"],
+        )
+        context_ids.append(selected_record["id"])
         text += selected_record["piece"]
 
         if json_string_prefix_status(text) == "complete":
             return cast(str, json.loads(text))
 
-    raise StepLimitExceededError("No string was created in the steps length")
-
-
-
+    raise StepLimitExceededError(
+        "No string was created in the steps length"
+    )
 
 
 def generate_boolean_argument(
@@ -81,26 +81,45 @@ def generate_boolean_argument(
 
     for _ in range(max_steps):
         logits = adapter.score_ids(context_ids)
-        records = build_candidate_records(range(len(logits)), logits, adapter.decode_id)
+        records = build_candidate_records(
+            range(len(logits)),
+            logits,
+            adapter.decode_id,
+        )
         legal_records = [
-            record for record in records
+            record
+            for record in records
             if record["piece"]
-            and json_boolean_prefix_status(text + record["piece"]) != "invalid"
+            and json_boolean_prefix_status(
+                text + record["piece"]
+            ) != "invalid"
         ]
-        if len(legal_records) == 0:
-            raise NoLegalContinuationError("No legal continuation for this partial boolean")
-        selected_record = max(legal_records, key=lambda record: record["score"])
+        if not legal_records:
+            raise NoLegalContinuationError(
+                "No legal continuation for this partial boolean"
+            )
 
-        selected_id = selected_record["id"]
-        context_ids.append(selected_id)
+        selected_record = max(
+            legal_records,
+            key=lambda record: record["score"],
+        )
+        context_ids.append(selected_record["id"])
         text += selected_record["piece"]
+
         if json_boolean_prefix_status(text) == "complete":
             return cast(bool, json.loads(text))
 
-    raise StepLimitExceededError("No boolean was created in the steps length")
+    raise StepLimitExceededError(
+        "No boolean was created in the steps length"
+    )
 
 
-def generate_argument_object(adapter: ModelAdapter, request: str, func_def: dict, max_steps: int) -> dict:
+def generate_argument_object(
+    adapter: ModelAdapter,
+    request: str,
+    func_def: dict,
+    max_steps: int,
+) -> dict:
     parameter_types = extract_parameter_types(func_def)
     arguments: dict[str, Any] = {}
     string_candidates = extract_string_candidates(request)
@@ -110,12 +129,10 @@ def generate_argument_object(adapter: ModelAdapter, request: str, func_def: dict
         for param_name, kind in parameter_types.items()
         if kind == "number"
     ]
-
     ordered_number_arguments = map_ordered_number_arguments(
         number_parameter_names,
         extract_number_candidates(request),
     )
-
     if ordered_number_arguments is not None:
         arguments.update(ordered_number_arguments)
 
@@ -124,9 +141,7 @@ def generate_argument_object(adapter: ModelAdapter, request: str, func_def: dict
             continue
 
         if kind == "string" and "source" in param_name.lower():
-            arguments[param_name] = longest_string_candidate(
-                string_candidates
-            )
+            arguments[param_name] = longest_string_candidate(string_candidates)
             continue
 
         if kind == "string" and "replacement" in param_name.lower():
@@ -134,7 +149,6 @@ def generate_argument_object(adapter: ModelAdapter, request: str, func_def: dict
                 request,
                 string_candidates,
             )
-
             if replacement is not None:
                 arguments[param_name] = replacement
                 continue
@@ -143,11 +157,7 @@ def generate_argument_object(adapter: ModelAdapter, request: str, func_def: dict
             "regex" in param_name.lower()
             or "pattern" in param_name.lower()
         ):
-            regex = regex_string_candidate(
-                request,
-                string_candidates,
-            )
-
+            regex = regex_string_candidate(request, string_candidates)
             if regex is not None:
                 arguments[param_name] = regex
                 continue
@@ -165,46 +175,29 @@ def generate_argument_object(adapter: ModelAdapter, request: str, func_def: dict
             f"Parameter: {param_name} ({kind})\n"
             f"{ending_instruction}JSON value: "
         )
-
         context_ids = adapter.encode_prompt(field_context)
-        ret: Any
+
         if kind == "boolean":
-            ret = generate_boolean_argument(adapter, context_ids, max_steps)
+            value: Any = generate_boolean_argument(
+                adapter,
+                context_ids,
+                max_steps,
+            )
         elif kind == "string":
-            ret = generate_string_argument(adapter, context_ids, max_steps, string_candidates)
+            value = generate_string_argument(
+                adapter,
+                context_ids,
+                max_steps,
+                string_candidates,
+            )
         elif kind == "number":
-            ret = generate_number_argument(adapter, context_ids, max_steps)
-        arguments[param_name] = ret
+            value = generate_number_argument(
+                adapter,
+                context_ids,
+                max_steps,
+            )
+        else:
+            raise ValueError(f"Unsupported parameter type: {kind}")
+        arguments[param_name] = value
 
     return arguments
-
-
-def candidate_filter(
-    current_name: str,
-    func_names: list[str],
-    records: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    ret = []
-    for record in records:
-        piece = record["piece"]
-        if not piece:
-            continue
-        possibility = current_name + piece
-        if any(name.startswith(possibility) for name in func_names):
-            ret.append(record)
-    return ret
-
-
-def build_candidate_records(
-    candidate_ids: range,
-    logits: Any,
-    decode_id: Callable[[int], str],
-) -> list[dict[str, Any]]:
-    return [
-        {
-            "id": candidate_id,
-            "score": logits[candidate_id],
-            "piece": decode_id(candidate_id),
-        }
-        for candidate_id in candidate_ids
-    ]

@@ -1,3 +1,11 @@
+import json
+import re
+from typing import cast
+
+from candidates import build_candidate_records
+from errors import NoLegalContinuationError, StepLimitExceededError
+from model_adapter import ModelAdapter
+from prefix_status import json_number_prefix_status
 
 
 def generate_number_argument(
@@ -10,37 +18,45 @@ def generate_number_argument(
 
     for _ in range(max_steps):
         logits = adapter.score_ids(context_ids)
-        records = build_candidate_records(range(len(logits)), logits, adapter.decode_id)
+        records = build_candidate_records(
+            range(len(logits)),
+            logits,
+            adapter.decode_id,
+        )
         legal_records = [
-            record for record in records
+            record
+            for record in records
             if record["piece"]
-            and json_number_prefix_status(text + record["piece"]) != "invalid"
+            and json_number_prefix_status(
+                text + record["piece"]
+            ) != "invalid"
         ]
-        if len(legal_records) == 0:
-            raise NoLegalContinuationError("No legal continuation for this partial number")
-        selected_record = max(legal_records, key=lambda record: record["score"])
+        if not legal_records:
+            raise NoLegalContinuationError(
+                "No legal continuation for this partial number"
+            )
 
-        selected_id = selected_record["id"]
-        context_ids.append(selected_id)
+        selected_record = max(
+            legal_records,
+            key=lambda record: record["score"],
+        )
+        context_ids.append(selected_record["id"])
         text += selected_record["piece"]
+
         if json_number_prefix_status(text) == "ended":
             return cast(int | float, json.loads(text[:-1]))
 
-    raise StepLimitExceededError("No number was created in the steps length")
-
-
-def extract_number_candidates(request: str) -> list[str]:
-    return re.findall(
-        r"-?\d+(?:\.\d+)?",
-        request,
+    raise StepLimitExceededError(
+        "No number was created in the steps length"
     )
 
 
-def number_value(text: str) -> int | float:
-    if "." in text:
-        return float(text)
+def extract_number_candidates(request: str) -> list[str]:
+    return re.findall(r"-?\d+(?:\.\d+)?", request)
 
-    return int(text)
+
+def number_value(text: str) -> int | float:
+    return float(text) if "." in text else int(text)
 
 
 def map_ordered_number_arguments(
