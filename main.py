@@ -93,6 +93,7 @@ def main() -> None:
     if output_path.resolve() in input_paths:
         print("Output path must differ from input paths", file=sys.stderr)
         raise SystemExit(1)
+    output_path.parent.mkdir(exist_ok=True)
 
     try:
         output_path.unlink(missing_ok=True)
