@@ -165,8 +165,8 @@ def generate_argument_object(
         ending_instruction = ""
         if kind == "number":
             ending_instruction = (
-                f"Give the number for {param_name} from the request as a JSON number "
-                "followed immediately by a comma.\n"
+                f"Give the number for {param_name} from the request as a "
+                "JSON number followed immediately by a comma.\n"
             )
 
         field_context = (

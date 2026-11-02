@@ -1,8 +1,7 @@
+import json
 from typing import cast
 
 from main import build_function_selection_context
-from main import build_argument_object_context
-from main import build_parameter_generation_context
 from main import function_keyword_score
 from main import select_function_name
 from main import is_string_prefix_of_candidate
@@ -10,6 +9,38 @@ from main import extract_string_candidates
 from main import extract_number_candidates
 from main import map_ordered_number_arguments
 from model_adapter import ModelAdapter
+
+
+def build_argument_object_context_for_test(
+    request: str,
+    func_def: dict,
+) -> str:
+    context = (
+        "Generate the complete argument object for the selected function.\n"
+        "Return exactly one valid JSON object.\n\n"
+        f"Request:\n{request}\n\n"
+        f"Function:\n{func_def['name']} - {func_def['description']}\n\n"
+        "Required parameters:\n"
+    )
+
+    for param_name, details in func_def["parameters"].items():
+        context += f"- {param_name}: {details['type']}\n"
+
+    return context + "\nJSON object:\n"
+
+
+def build_parameter_generation_context_for_test(
+    request: str,
+    func_def: dict,
+    generated_arguments: dict,
+    param_name: str,
+    kind: str,
+) -> str:
+    context = build_argument_object_context_for_test(request, func_def)
+    context += f"\nAlready generated arguments:\n{json.dumps(generated_arguments)}\n"
+    context += f"Current parameter: {param_name} ({kind})\n"
+    context += "Generate the JSON value for this parameter:\nJSON value:\n"
+    return context
 
 
 def test_function_selection_context_contains_request_and_candidates() -> None:
@@ -49,7 +80,7 @@ def test_argument_object_context_contains_complete_schema() -> None:
         },
     }
 
-    context = build_argument_object_context(
+    context = build_argument_object_context_for_test(
         "Use 42 and hello.",
         function,
     )
@@ -74,7 +105,7 @@ def test_parameter_generation_context_contains_partial_object() -> None:
         },
     }
 
-    context = build_parameter_generation_context(
+    context = build_parameter_generation_context_for_test(
         "Use 42 and hello.",
         function,
         {"first_value": 42},

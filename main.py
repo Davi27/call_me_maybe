@@ -3,11 +3,7 @@ import json
 import sys
 from pathlib import Path
 
-from context_builder import (
-    build_argument_object_context,
-    build_function_selection_context,
-    build_parameter_generation_context,
-)
+from context_builder import build_function_selection_context
 from candidates import build_candidate_records, candidate_filter
 from definitions import extract_parameter_types
 from errors import NoLegalContinuationError, StepLimitExceededError
@@ -42,10 +38,8 @@ __all__ = [
     "ModelAdapter",
     "NoLegalContinuationError",
     "StepLimitExceededError",
-    "build_argument_object_context",
     "build_candidate_records",
     "build_function_selection_context",
-    "build_parameter_generation_context",
     "candidate_filter",
     "extract_number_candidates",
     "extract_parameter_types",
