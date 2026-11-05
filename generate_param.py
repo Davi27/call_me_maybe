@@ -7,6 +7,7 @@ from errors import NoLegalContinuationError, StepLimitExceededError
 from generate_number import (
     extract_number_candidates,
     generate_number_argument,
+	generate_integer_argument,
     map_ordered_number_arguments,
 )
 from model_adapter import ModelAdapter
@@ -29,6 +30,17 @@ def generate_string_argument(
     max_steps: int,
     candidates: list[str],
 ) -> str:
+    """ 
+        Generate a string as a value of a function parameter
+
+        Arguments:
+            adapter - an instance of the ModelAdapter class
+            initial_context_ids - the context to feed the model
+            max_steps - the limit of iterations
+
+        Return:
+            the string generated
+    """
     context_ids = list(initial_context_ids)
     text = ""
 
@@ -76,6 +88,17 @@ def generate_boolean_argument(
     initial_context_ids: list[int],
     max_steps: int,
 ) -> bool:
+    """ 
+        Generate a boolean as a value of a function parameter
+
+        Arguments:
+            adapter - an instance of the ModelAdapter class
+            initial_context_ids - the context to feed the model
+            max_steps - the limit of iterations
+
+        Return:
+            the boolean generated
+    """
     context_ids = list(initial_context_ids)
     text = ""
 
@@ -120,6 +143,19 @@ def generate_argument_object(
     func_def: dict,
     max_steps: int,
 ) -> dict:
+    """ 
+        Pair the parameter names with the values from the appropriate
+        function depending on the type
+
+        Arguments:
+            adapter - an instance of the ModelAdapter class
+            request - the prompt
+            func_def - the function definition
+            max_steps - the limit of iterations
+
+        Return:
+            the number generated converted into a float
+    """
     parameter_types = extract_parameter_types(func_def)
     arguments: dict[str, Any] = {}
     string_candidates = extract_string_candidates(request)
@@ -192,6 +228,12 @@ def generate_argument_object(
             )
         elif kind == "number":
             value = generate_number_argument(
+                adapter,
+                context_ids,
+                max_steps,
+            )
+        elif kind == "integer":
+            value = generate_integer_argument(
                 adapter,
                 context_ids,
                 max_steps,

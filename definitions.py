@@ -1,5 +1,13 @@
 def extract_parameter_types(func_def: dict) -> dict[str, str]:
-    """Validate one function definition and return parameter types."""
+    """ 
+        Validate one function definition and return parameter types.
+
+        Arguments:
+            func_def - the definition of a single function
+
+        Return:
+            a dictionary with the name and type of the parameters
+    """
     if not isinstance(func_def, dict):
         raise ValueError("Function definition should be a dictionary")
 
@@ -25,7 +33,7 @@ def extract_parameter_types(func_def: dict) -> dict[str, str]:
             )
 
         type_name = detail.get("type")
-        if type_name not in {"string", "boolean", "number"}:
+        if type_name not in {"string", "boolean", "number", "integer"}:
             raise ValueError(
                 f"{parameter_name}: unsupported type {type_name!r}"
             )

@@ -340,3 +340,39 @@ produces a schema-compliant result with the source string, the `\\d+` pattern, a
 ## AI use disclosure
 
 AI assistance was used to explain project concepts, inspect and debug implementation issues, suggest and review bounded code changes, verify commands and tests, and help structure this documentation. AI-generated suggestions were checked against the repository, the project subject, executable tests, and observed runtime behavior. The final implementation and documentation are the student's responsibility.
+
+
+## Moulinette handling
+
+
+export UV_CACHE_DIR=/sgoinfre/$USER/uv-cache
+export HF_HOME=/sgoinfre/$USER/huggingface
+export TMPDIR=/sgoinfre/$USER/tmp
+export UV_PROJECT_ENVIRONMENT=/sgoinfre/$USER/venvs/call_me_maybe
+
+make install
+
+cd moulinette
+
+export UV_CACHE_DIR=/sgoinfre/$USER/uv-cache
+export UV_PROJECT_ENVIRONMENT=/sgoinfre/$USER/venvs/moulinette
+
+uv sync
+
+
+uv run python -m moulinette prepare_exercises --output ../evaluation_rehearsal --set public
+
+cd ..
+export UV_PROJECT_ENVIRONMENT=/sgoinfre/$USER/venvs/call_me_maybe
+
+uv run python -m src \
+  --functions_definition evaluation_rehearsal/input/functions_definition.json \
+  --input evaluation_rehearsal/input/function_calling_tests.json \
+  --output evaluation_rehearsal/output/function_calls.json
+
+cd moulinette
+export UV_PROJECT_ENVIRONMENT=/sgoinfre/$USER/venvs/moulinette
+
+uv run python -m moulinette grade_student_answers \
+  ../evaluation_rehearsal/output/function_calls.json \
+  --set public

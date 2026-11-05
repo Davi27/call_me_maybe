@@ -1,4 +1,13 @@
 def json_boolean_prefix_status(text: str) -> str:
+    """ 
+        Find the progress of the extraction a boolean from the string.
+
+        Arguments:
+            text - the string
+
+        Return:
+            a string with the current progress
+    """
     if not text:
         return "incomplete"
 
@@ -11,6 +20,15 @@ def json_boolean_prefix_status(text: str) -> str:
 
 
 def json_number_prefix_status(text: str) -> str:
+    """ 
+        Find the progress of the extraction a number from the string.
+
+        Arguments:
+            text - the string
+
+        Return:
+            a string with the current progress
+    """
     if not text:
         return "incomplete"
 
@@ -54,6 +72,15 @@ def json_number_prefix_status(text: str) -> str:
 
 
 def json_string_prefix_status(text: str) -> str:
+    """ 
+        Find the progress of the extraction a string from another string.
+
+        Arguments:
+            text - the bigger string
+
+        Return:
+            a string with the current progress
+    """
     if not text:
         return "incomplete"
     if text[0] != '"':

@@ -64,6 +64,10 @@ __all__ = [
 
 
 def main() -> None:
+    """ 
+        Set default path for input | output files
+        Build and write the output
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--functions_definition",

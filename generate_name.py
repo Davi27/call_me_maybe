@@ -12,6 +12,19 @@ def generate_function_name(
     allowed_names: list[str],
     max_steps: int,
 ) -> str:
+    """ 
+        Generate the name of the function one token per time
+
+        Arguments:
+            adapter - an instance of the ModelAdapter class
+            initial_context_ids - the context to feed the model
+            initial_partial_name - the start of the name of the function
+            allowed_names - the list of allowed names
+            max_steps - the limit of iterations
+
+        Return:
+            the name generated
+    """
     context_ids = list(initial_context_ids)
     partial_name = initial_partial_name
 
