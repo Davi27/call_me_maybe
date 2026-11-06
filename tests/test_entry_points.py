@@ -266,6 +266,53 @@ def test_changed_definition_schema_is_used(tmp_path: Path) -> None:
     assert not isinstance(output[0]["parameters"]["value"], bool)
 
 
+def test_mixed_number_and_integer_parameters_preserve_request_order(
+    tmp_path: Path,
+) -> None:
+    definitions_path = tmp_path / "definitions.json"
+    input_path = tmp_path / "prompts.json"
+    output_path = tmp_path / "results.json"
+
+    definitions_path.write_text(
+        json.dumps(
+            [
+                {
+                    "name": "fn_measure",
+                    "description": "Measure a value and count samples.",
+                    "parameters": {
+                        "value": {"type": "number"},
+                        "samples": {"type": "integer"},
+                    },
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    input_path.write_text(
+        json.dumps([{"prompt": "Measure 3.14 using 5 samples."}]),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            "uv", "run", "python", "-m", "src",
+            "--functions_definition", str(definitions_path),
+            "--input", str(input_path),
+            "--output", str(output_path),
+        ],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    output = json.loads(output_path.read_text(encoding="utf-8"))
+    assert output[0]["parameters"] == {"value": 3.14, "samples": 5}
+    assert type(output[0]["parameters"]["value"]) is float
+    assert type(output[0]["parameters"]["samples"]) is int
+
+
 def test_missing_input_is_handled(tmp_path: Path) -> None:
     missing_input = tmp_path / "missing.json"
     output_path = tmp_path / "function_calling_results.json"

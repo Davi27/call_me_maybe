@@ -1,12 +1,14 @@
 def extract_parameter_types(func_def: dict) -> dict[str, str]:
-    """ 
-        Validate one function definition and return parameter types.
+    """Validate one function definition and return its parameter types.
 
-        Arguments:
-            func_def - the definition of a single function
+    Args:
+        func_def: A single function definition.
 
-        Return:
-            a dictionary with the name and type of the parameters
+    Returns:
+        A dictionary mapping parameter names to supported type names.
+
+    Raises:
+        ValueError: If the definition or one of its parameters is invalid.
     """
     if not isinstance(func_def, dict):
         raise ValueError("Function definition should be a dictionary")

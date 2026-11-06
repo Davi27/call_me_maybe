@@ -1,14 +1,12 @@
 def build_function_selection_context(request: str, funcs: list[dict]) -> str:
-    """ 
-        Create the context to feed the model for the generation of the 
-        name of the function
+    """Build the prompt used to generate a function name.
 
-        Arguments:
-            request - the prompt
-            funcs - a list with all function definitions
+    Args:
+        request: The natural-language request.
+        funcs: Available function definitions.
 
-        Return:
-            the full context
+    Returns:
+        The complete function-selection context.
     """
     context = "Choose the function that best matches the request.\n"
     context += "Return only one available function name.\n\n"

@@ -1,12 +1,12 @@
 def json_boolean_prefix_status(text: str) -> str:
-    """ 
-        Find the progress of the extraction a boolean from the string.
+    """Classify the current JSON-boolean prefix.
 
-        Arguments:
-            text - the string
+    Args:
+        text: The generated text prefix.
 
-        Return:
-            a string with the current progress
+    Returns:
+        ``"complete"`` for a complete boolean, ``"incomplete"`` for a valid
+        prefix, or ``"invalid"`` for an impossible prefix.
     """
     if not text:
         return "incomplete"
@@ -20,14 +20,15 @@ def json_boolean_prefix_status(text: str) -> str:
 
 
 def json_number_prefix_status(text: str) -> str:
-    """ 
-        Find the progress of the extraction a number from the string.
+    """Classify the current JSON-number prefix.
 
-        Arguments:
-            text - the string
+    Args:
+        text: The generated text prefix.
 
-        Return:
-            a string with the current progress
+    Returns:
+        ``"ended"`` for a complete number followed by a delimiter,
+        ``"complete"`` for a complete number without a delimiter,
+        ``"incomplete"`` for a valid prefix, or ``"invalid"`` otherwise.
     """
     if not text:
         return "incomplete"
@@ -71,15 +72,50 @@ def json_number_prefix_status(text: str) -> str:
     return "complete"
 
 
+def json_integer_prefix_status(text: str) -> str:
+    """Classify the current JSON-integer prefix.
+
+    Args:
+        text: The generated text prefix.
+
+    Returns:
+        ``"ended"`` for a complete integer followed by a delimiter,
+        ``"complete"`` for a complete integer without a delimiter,
+        ``"incomplete"`` for a valid prefix, or ``"invalid"`` otherwise.
+    """
+    if not text:
+        return "incomplete"
+
+    value = text[:-1] if text[-1] in " ," else text
+    if text[-1] in " ,":
+        if not value or value == "-":
+            return "invalid"
+        if not value.lstrip("-").isdigit():
+            return "invalid"
+        digits = value[1:] if value.startswith("-") else value
+        if len(digits) > 1 and digits.startswith("0"):
+            return "invalid"
+        return "ended"
+
+    if value == "-":
+        return "incomplete"
+    digits = value[1:] if value.startswith("-") else value
+    if not digits.isdigit():
+        return "invalid"
+    if len(digits) > 1 and digits.startswith("0"):
+        return "invalid"
+    return "complete"
+
+
 def json_string_prefix_status(text: str) -> str:
-    """ 
-        Find the progress of the extraction a string from another string.
+    """Classify the current JSON-string prefix.
 
-        Arguments:
-            text - the bigger string
+    Args:
+        text: The generated text prefix.
 
-        Return:
-            a string with the current progress
+    Returns:
+        ``"complete"`` for a complete JSON string, ``"incomplete"`` for a
+        valid prefix, or ``"invalid"`` for an impossible prefix.
     """
     if not text:
         return "incomplete"

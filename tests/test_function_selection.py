@@ -295,3 +295,17 @@ def test_map_ordered_number_arguments_returns_none_when_counts_differ() -> None:
     )
 
     assert result is None
+
+
+def test_map_ordered_integer_arguments_rejects_decimal_candidates() -> None:
+    from main import map_ordered_integer_arguments
+
+    assert map_ordered_integer_arguments(["count"], ["3.14"]) is None
+
+
+def test_integer_prefix_rejects_leading_zero_token_pieces() -> None:
+    from main import json_integer_prefix_status
+
+    assert json_integer_prefix_status("01,") == "invalid"
+    assert json_integer_prefix_status("-01,") == "invalid"
+    assert json_integer_prefix_status("42,") == "ended"

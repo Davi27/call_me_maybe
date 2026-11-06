@@ -6,16 +6,15 @@ def candidate_filter(
     func_names: list[str],
     records: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """
-        Keep token records that preserve at least one allowed name prefix.
+    """Keep token records that preserve at least one allowed name prefix.
 
-        Arguments:
-            current_name - the name generated so far
-            func_names - the name of all functions
-            records - the records of each token
+    Args:
+        current_name: The function-name prefix generated so far.
+        func_names: The allowed function names.
+        records: Token records containing IDs, scores, and decoded pieces.
 
-        Return:
-            a list with the records of the legal tokens
+    Returns:
+        The records whose token pieces can continue at least one allowed name.
     """
     return [
         record
@@ -33,16 +32,15 @@ def build_candidate_records(
     logits: Any,
     decode_id: Callable[[int], str],
 ) -> list[dict[str, Any]]:
-    """
-        Keep each token id, score, and decoded piece together
+    """Build records that keep each token ID, score, and decoded piece together.
 
-        Arguments:
-            candidate_ids - the number of tokens
-            logits - the score of each token
-            decode_id - the translation of the decoded token 
+    Args:
+        candidate_ids: Token IDs to inspect.
+        logits: Model scores indexed by token ID.
+        decode_id: Function that decodes a token ID into a text piece.
 
-        Return:
-            a list with the records of all tokens
+    Returns:
+        A record for each candidate token.
     """
     return [
         {

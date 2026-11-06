@@ -7,7 +7,8 @@ from errors import NoLegalContinuationError, StepLimitExceededError
 from generate_number import (
     extract_number_candidates,
     generate_number_argument,
-	generate_integer_argument,
+    generate_integer_argument,
+    map_ordered_integer_arguments,
     map_ordered_number_arguments,
 )
 from model_adapter import ModelAdapter
@@ -30,16 +31,20 @@ def generate_string_argument(
     max_steps: int,
     candidates: list[str],
 ) -> str:
-    """ 
-        Generate a string as a value of a function parameter
+    """Generate a string as a function argument.
 
-        Arguments:
-            adapter - an instance of the ModelAdapter class
-            initial_context_ids - the context to feed the model
-            max_steps - the limit of iterations
+    Args:
+        adapter: Model adapter used to score candidate tokens.
+        initial_context_ids: Token IDs representing the initial context.
+        max_steps: Maximum number of generation iterations.
+        candidates: Request-derived string candidates.
 
-        Return:
-            the string generated
+    Returns:
+        The generated string.
+
+    Raises:
+        NoLegalContinuationError: If no token can continue a valid string.
+        StepLimitExceededError: If the string is incomplete after max_steps.
     """
     context_ids = list(initial_context_ids)
     text = ""
@@ -88,16 +93,19 @@ def generate_boolean_argument(
     initial_context_ids: list[int],
     max_steps: int,
 ) -> bool:
-    """ 
-        Generate a boolean as a value of a function parameter
+    """Generate a boolean as a function argument.
 
-        Arguments:
-            adapter - an instance of the ModelAdapter class
-            initial_context_ids - the context to feed the model
-            max_steps - the limit of iterations
+    Args:
+        adapter: Model adapter used to score candidate tokens.
+        initial_context_ids: Token IDs representing the initial context.
+        max_steps: Maximum number of generation iterations.
 
-        Return:
-            the boolean generated
+    Returns:
+        The generated boolean.
+
+    Raises:
+        NoLegalContinuationError: If no token can continue a valid boolean.
+        StepLimitExceededError: If the boolean is incomplete after max_steps.
     """
     context_ids = list(initial_context_ids)
     text = ""
@@ -143,34 +151,60 @@ def generate_argument_object(
     func_def: dict,
     max_steps: int,
 ) -> dict:
-    """ 
-        Pair the parameter names with the values from the appropriate
-        function depending on the type
+    """Generate an argument dictionary for a validated function definition.
 
-        Arguments:
-            adapter - an instance of the ModelAdapter class
-            request - the prompt
-            func_def - the function definition
-            max_steps - the limit of iterations
+    Args:
+        adapter: Model adapter used to generate constrained values.
+        request: The natural-language request.
+        func_def: The selected function definition.
+        max_steps: Maximum number of generation iterations per value.
 
-        Return:
-            the number generated converted into a float
+    Returns:
+        A dictionary mapping parameter names to generated values.
+
+    Raises:
+        ValueError: If the function definition or a value type is invalid.
+        NoLegalContinuationError: If a value has no valid continuation.
+        StepLimitExceededError: If a value is incomplete after max_steps.
     """
     parameter_types = extract_parameter_types(func_def)
     arguments: dict[str, Any] = {}
     string_candidates = extract_string_candidates(request)
 
-    number_parameter_names = [
+    numeric_parameter_names = [
         param_name
         for param_name, kind in parameter_types.items()
-        if kind == "number"
+        if kind in {"number", "integer"}
     ]
-    ordered_number_arguments = map_ordered_number_arguments(
-        number_parameter_names,
-        extract_number_candidates(request),
-    )
-    if ordered_number_arguments is not None:
-        arguments.update(ordered_number_arguments)
+    numeric_candidates = extract_number_candidates(request)
+    if len(numeric_parameter_names) == len(numeric_candidates):
+        ordered_numeric_arguments: dict[str, Any] = {}
+        can_map_numeric_arguments = True
+        for parameter_name, numeric_text in zip(
+            numeric_parameter_names,
+            numeric_candidates,
+        ):
+            kind = parameter_types[parameter_name]
+            if kind == "integer":
+                integer_arguments = map_ordered_integer_arguments(
+                    [parameter_name],
+                    [numeric_text],
+                )
+                if integer_arguments is None:
+                    can_map_numeric_arguments = False
+                    break
+                ordered_numeric_arguments.update(integer_arguments)
+            else:
+                number_arguments = map_ordered_number_arguments(
+                    [parameter_name],
+                    [numeric_text],
+                )
+                if number_arguments is None:
+                    can_map_numeric_arguments = False
+                    break
+                ordered_numeric_arguments.update(number_arguments)
+        if can_map_numeric_arguments:
+            arguments.update(ordered_numeric_arguments)
 
     for param_name, kind in parameter_types.items():
         if param_name in arguments:

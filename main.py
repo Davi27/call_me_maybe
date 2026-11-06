@@ -11,7 +11,9 @@ from function_selection import function_keyword_score, select_function_name
 from generate_name import generate_function_name
 from generate_number import (
     extract_number_candidates,
+    generate_integer_argument,
     generate_number_argument,
+    map_ordered_integer_arguments,
     map_ordered_number_arguments,
 )
 from generate_param import (
@@ -22,6 +24,7 @@ from generate_param import (
 from model_adapter import ModelAdapter
 from prefix_status import (
     json_boolean_prefix_status,
+    json_integer_prefix_status,
     json_number_prefix_status,
     json_string_prefix_status,
 )
@@ -48,14 +51,17 @@ __all__ = [
     "generate_argument_object",
     "generate_boolean_argument",
     "generate_function_name",
+    "generate_integer_argument",
     "generate_number_argument",
     "generate_string_argument",
     "is_string_prefix_of_candidate",
     "json_boolean_prefix_status",
+    "json_integer_prefix_status",
     "json_number_prefix_status",
     "json_string_prefix_status",
     "longest_string_candidate",
     "main",
+    "map_ordered_integer_arguments",
     "map_ordered_number_arguments",
     "regex_string_candidate",
     "replacement_string_candidate",
@@ -64,9 +70,9 @@ __all__ = [
 
 
 def main() -> None:
-    """ 
-        Set default path for input | output files
-        Build and write the output
+    """Run the command-line application and write its generated results.
+
+    The input and output paths are configured through command-line arguments.
     """
     parser = argparse.ArgumentParser()
     parser.add_argument(

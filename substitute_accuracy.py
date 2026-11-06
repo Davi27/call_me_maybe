@@ -1,9 +1,7 @@
+"""Extract request-specific values for regex substitution calls."""
+
 import re
 
-"""
-    The 5 functions below extract the 3 parameters for the function
-    fn_substitute_string_with_regex from the prompt
-"""
 
 def longest_string_candidate(candidates: list[str]) -> str:
     if not candidates:

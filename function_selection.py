@@ -27,15 +27,14 @@ FUNCTION_STOP_WORDS = {
 
 
 def function_keyword_score(request: str, func: dict) -> int:
-    """ 
-        Look for same words in prompt - function_name | description.
+    """Return the number of words shared by the request and function metadata.
 
-        Arguments:
-            request - a prompt
-            func - a function definition
+    Args:
+        request: The natural-language request.
+        func: A function definition containing a name and description.
 
-        Return:
-            the number of matches
+    Returns:
+        The number of shared non-stop words.
     """
     request_words = {
         word
@@ -62,18 +61,20 @@ def select_function_name(
     funcs: list[dict],
     max_steps: int,
 ) -> str:
-    """ 
-        Stores matches of words between the prompt and 
-        function name|description.
+    """Select and generate the function name that best matches the request.
 
-        Arguments:
-            adapter - an instance to the model adapter class
-            request - a prompt
-            funcs - a list with all function definitions
-            max_steps - the limit of times the loop can run
+    Args:
+        adapter: Model adapter used to score candidate tokens.
+        request: The natural-language request.
+        funcs: Available function definitions.
+        max_steps: Maximum number of generation iterations.
 
-        Return:
-            the return from generate_function_name()
+    Returns:
+        The selected function name.
+
+    Raises:
+        NoLegalContinuationError: If no token can continue an allowed name.
+        StepLimitExceededError: If the name is incomplete after max_steps.
     """
     scored_functions = [
         (
@@ -99,4 +100,3 @@ def select_function_name(
         best_names,
         max_steps,
     )
-	

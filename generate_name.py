@@ -12,18 +12,21 @@ def generate_function_name(
     allowed_names: list[str],
     max_steps: int,
 ) -> str:
-    """ 
-        Generate the name of the function one token per time
+    """Generate an allowed function name one token at a time.
 
-        Arguments:
-            adapter - an instance of the ModelAdapter class
-            initial_context_ids - the context to feed the model
-            initial_partial_name - the start of the name of the function
-            allowed_names - the list of allowed names
-            max_steps - the limit of iterations
+    Args:
+        adapter: Model adapter used to score candidate tokens.
+        initial_context_ids: Token IDs representing the initial context.
+        initial_partial_name: Function-name prefix generated so far.
+        allowed_names: Function names that may be generated.
+        max_steps: Maximum number of generation iterations.
 
-        Return:
-            the name generated
+    Returns:
+        The generated function name.
+
+    Raises:
+        NoLegalContinuationError: If no token can continue an allowed name.
+        StepLimitExceededError: If the name is incomplete after max_steps.
     """
     context_ids = list(initial_context_ids)
     partial_name = initial_partial_name

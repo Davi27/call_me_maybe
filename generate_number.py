@@ -1,11 +1,13 @@
 import json
 import re
-from typing import cast
 
 from candidates import build_candidate_records
 from errors import NoLegalContinuationError, StepLimitExceededError
 from model_adapter import ModelAdapter
-from prefix_status import json_number_prefix_status
+from prefix_status import (
+    json_integer_prefix_status,
+    json_number_prefix_status,
+)
 
 
 def generate_number_argument(
@@ -13,16 +15,19 @@ def generate_number_argument(
     initial_context_ids: list[int],
     max_steps: int,
 ) -> float:
-    """ 
-        Generate a number as a value of a function parameter
+    """Generate a JSON number as a function argument.
 
-        Arguments:
-            adapter - an instance of the ModelAdapter class
-            initial_context_ids - the context to feed the model
-            max_steps - the limit of iterations
+    Args:
+        adapter: Model adapter used to score candidate tokens.
+        initial_context_ids: Token IDs representing the initial context.
+        max_steps: Maximum number of generation iterations.
 
-        Return:
-            the number generated converted into a float
+    Returns:
+        The generated number as a float.
+
+    Raises:
+        NoLegalContinuationError: If no token can continue a valid number.
+        StepLimitExceededError: If the number is incomplete after max_steps.
     """
     context_ids = list(initial_context_ids)
     text = ""
@@ -67,16 +72,19 @@ def generate_integer_argument(
     initial_context_ids: list[int],
     max_steps: int,
 ) -> int:
-    """ 
-        Generate a number as a value of a function parameter
+    """Generate a JSON integer as a function argument.
 
-        Arguments:
-            adapter - an instance of the ModelAdapter class
-            initial_context_ids - the context to feed the model
-            max_steps - the limit of iterations
+    Args:
+        adapter: Model adapter used to score candidate tokens.
+        initial_context_ids: Token IDs representing the initial context.
+        max_steps: Maximum number of generation iterations.
 
-        Return:
-            the number generated converted into an integer
+    Returns:
+        The generated number as an integer.
+
+    Raises:
+        NoLegalContinuationError: If no token can continue a valid integer.
+        StepLimitExceededError: If the integer is incomplete after max_steps.
     """
     context_ids = list(initial_context_ids)
     text = ""
@@ -92,7 +100,7 @@ def generate_integer_argument(
             record
             for record in records
             if record["piece"]
-            and json_number_prefix_status(
+            and json_integer_prefix_status(
                 text + record["piece"]
             ) != "invalid"
         ]
@@ -108,7 +116,7 @@ def generate_integer_argument(
         context_ids.append(selected_record["id"])
         text += selected_record["piece"]
 
-        if json_number_prefix_status(text) == "ended":
+        if json_integer_prefix_status(text) == "ended":
             return int(json.loads(text[:-1]))
 
     raise StepLimitExceededError(
@@ -117,19 +125,19 @@ def generate_integer_argument(
 
 
 def extract_number_candidates(request: str) -> list[str]:
-    """ 
-        Extract all digits from the input
+    """Extract integer and decimal number literals from a request.
 
-        Arguments:
-            request - the input
+    Args:
+        request: The natural-language request.
 
-        Return:
-            a list with all the numbers found
+    Returns:
+        The numeric literals found in their original textual form.
     """
     return re.findall(r"-?\d+(?:\.\d+)?", request)
 
 
 def number_value(text: str) -> float:
+    """Convert a numeric literal to the required float representation."""
     return float(text)
 
 
@@ -137,15 +145,14 @@ def map_ordered_number_arguments(
     parameter_names: list[str],
     number_candidates: list[str],
 ) -> dict[str, float] | None:
-    """ 
-        Order the numbers, if more than one is needed
+    """Map extracted numeric values to parameter names when counts match.
 
-        Arguments:
-            parameter_names - a list of parameter names
-            number_candidates - a list with extracted numbers
+    Args:
+        parameter_names: Parameter names to populate.
+        number_candidates: Numeric literals extracted from the request.
 
-        Return:
-            a dictionary matching the name - 
+    Returns:
+        A parameter-to-float mapping, or None when the counts differ.
     """
     if len(parameter_names) != len(number_candidates):
         return None
@@ -155,5 +162,33 @@ def map_ordered_number_arguments(
         for parameter_name, number_text in zip(
             parameter_names,
             number_candidates,
+        )
+    }
+
+
+def map_ordered_integer_arguments(
+    parameter_names: list[str],
+    integer_candidates: list[str],
+) -> dict[str, int] | None:
+    """Map extracted integral values to integer parameter names.
+
+    Args:
+        parameter_names: Integer parameter names to populate.
+        integer_candidates: Numeric literals extracted from the request.
+
+    Returns:
+        A parameter-to-integer mapping, or None when the counts differ or a
+        candidate is decimal.
+    """
+    if len(parameter_names) != len(integer_candidates):
+        return None
+    if any("." in candidate for candidate in integer_candidates):
+        return None
+
+    return {
+        parameter_name: int(integer_text)
+        for parameter_name, integer_text in zip(
+            parameter_names,
+            integer_candidates,
         )
     }
